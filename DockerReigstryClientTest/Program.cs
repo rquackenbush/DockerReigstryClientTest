@@ -2,7 +2,6 @@
 
 namespace DockerReigstryClientTest
 {
-    using System.Collections.Generic;
     using System.IdentityModel.Tokens.Jwt;
     using System.IO;
     using System.Linq;
@@ -18,58 +17,26 @@ namespace DockerReigstryClientTest
     using Microsoft.IdentityModel.Tokens;
     using Org.BouncyCastle.Asn1.X509;
     using Org.BouncyCastle.Crypto;
-    using Org.BouncyCastle.Crypto.Parameters;
     using Org.BouncyCastle.Security;
     using Org.BouncyCastle.X509;
     using X509Certificate = Org.BouncyCastle.X509.X509Certificate;
 
     class Program
     {
-        //Bearer realm="https://desktop-richq.captiveaire.com/AuthTest",service="Docker registry"
-
         static void Main(string[] args)
         {
             TestAsync().GetAwaiter().GetResult();            
-            //TestAllAsync().GetAwaiter().GetResult();
-            
-            //SecurityAlgorithms.RsaSha256
         }
-
-        //private static async Task TestAllAsync()
-        //{
-        //    var type = typeof(SecurityAlgorithms);
-
-        //    var fields = type.GetFields();
-
-        //    foreach (var field in fields)
-        //    {
-        //        var value = (string)field.GetValue(null);
-
-        //        Console.WriteLine($"Attempting '{value}'...");
-
-        //        try
-        //        {
-        //            await TestAsync(value);
-        //        }
-        //        catch (Exception ex)
-        //        {
-        //            Console.WriteLine($"  Failed: {ex.Message}");
-        //        }
-        //    }
-        //}
-
 
         private static async Task TestAsync()
         {
-            //const string uri = "http://172.22.5.74:5000/v2/";
-
-            const string uri = "http://10.0.4.44:5000/v2/";
+            const string requestUri = "http://10.0.4.44:5000/v2/";
 
             var token = CreateToken();
 
             using (var httpClient = new HttpClient())
             {
-                var request = new HttpRequestMessage(HttpMethod.Get, uri);
+                var request = new HttpRequestMessage(HttpMethod.Get, requestUri);
 
                 request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
@@ -79,6 +46,7 @@ namespace DockerReigstryClientTest
                 {
                     string content = await response.Content.ReadAsStringAsync();
 
+                    Console.WriteLine(content);
 
                     Console.WriteLine("  Woot!");
                 }
@@ -100,45 +68,13 @@ namespace DockerReigstryClientTest
 
             X509Certificate2 cert = new X509Certificate2(bytes, new SecureString());
 
-            Console.WriteLine(cert.Thumbprint);
-
-            X509Certificate bouncyCert = DotNetUtilities.FromX509Certificate(cert);
-
-            AsymmetricKeyParameter bouncyPublicKey =  bouncyCert.GetPublicKey();
-
-            SubjectPublicKeyInfo info = SubjectPublicKeyInfoFactory.CreateSubjectPublicKeyInfo(bouncyPublicKey);
-
-            var encoded = info.GetDerEncoded();
-
-            string kid;
-
-            using (SHA256Managed sha256 = new SHA256Managed())
-            {
-                byte[] hash = sha256.ComputeHash(encoded);
-
-                byte[] sub = hash
-                    .Take(30)
-                    .ToArray();
-
-                string base32 = Base32.Encode(sub);
-
-                //TODO: Just need to inser the colons and we're set.
-
-                kid = base32;
-            }
-                
-//            Console.WriteLine($"{data[0]:X}");
-
-            kid = "HLYU:SELM:BG3X:EXTU:TWTV:ISOU:THVV:HNTF:VZ2E:YM3V:E7U2:PHKE";
-
             var key = new X509SecurityKey(cert)
             {
-                KeyId = kid
+                KeyId = GetKid(cert)
             };
 
             var credentials = new SigningCredentials(key, SecurityAlgorithms.RsaSha256);
             
-
             var header = new JwtHeader(credentials);
 
             var claims = new Claim[]
@@ -161,44 +97,61 @@ namespace DockerReigstryClientTest
             return token;
         }
 
-        //private static string CreateJoseToken()
-        //{
+        /// <summary>
+        /// Gets the kid for docker registry.
+        /// </summary>
+        /// <param name="certificate"></param>
+        /// <returns></returns>
+        private static string GetKid(X509Certificate2 certificate)
+        {
+            X509Certificate bouncyCert = DotNetUtilities.FromX509Certificate(certificate);
 
-        //}
+            AsymmetricKeyParameter bouncyPublicKey = bouncyCert.GetPublicKey();
 
-        //public static string BytesToBase32(byte[] bytes)
-        //{
-        //    const string alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
-        //    string output = "";
-        //    for (int bitIndex = 0; bitIndex < bytes.Length * 8; bitIndex += 5)
-        //    {
-        //        int dualbyte = bytes[bitIndex / 8] << 8;
-        //        if (bitIndex / 8 + 1 < bytes.Length)
-        //            dualbyte |= bytes[bitIndex / 8 + 1];
-        //        dualbyte = 0x1f & (dualbyte >> (16 - bitIndex % 8 - 5));
-        //        output += alphabet[dualbyte];
-        //    }
+            SubjectPublicKeyInfo info = SubjectPublicKeyInfoFactory.CreateSubjectPublicKeyInfo(bouncyPublicKey);
 
-        //    return output;
-        //}
+            var encoded = info.GetDerEncoded();
 
-        //public static byte[] Base32ToBytes(string base32)
-        //{
-        //    const string alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
-        //    List<byte> output = new List<byte>();
-        //    char[] bytes = base32.ToCharArray();
-        //    for (int bitIndex = 0; bitIndex < base32.Length * 5; bitIndex += 8)
-        //    {
-        //        int dualbyte = alphabet.IndexOf(bytes[bitIndex / 5]) << 10;
-        //        if (bitIndex / 5 + 1 < bytes.Length)
-        //            dualbyte |= alphabet.IndexOf(bytes[bitIndex / 5 + 1]) << 5;
-        //        if (bitIndex / 5 + 2 < bytes.Length)
-        //            dualbyte |= alphabet.IndexOf(bytes[bitIndex / 5 + 2]);
+            using (SHA256Managed sha256 = new SHA256Managed())
+            {
+                byte[] hash = sha256.ComputeHash(encoded);
 
-        //        dualbyte = 0xff & (dualbyte >> (15 - bitIndex % 5 - 8));
-        //        output.Add((byte)(dualbyte));
-        //    }
-        //    return output.ToArray();
-        //}
+                //Take the first 30 bytes
+                byte[] sub = hash
+                    .Take(30)
+                    .ToArray();
+
+                string base32 = Base32.Encode(sub);
+
+                return FormatKid(base32);
+            }
+        }
+
+        private static string FormatKid(string raw)
+        {
+            const int RawKidLength = 48;
+
+            if (raw.Length != RawKidLength)
+                throw new Exception($"Raw kid was {raw.Length} characters instead of {RawKidLength}.");
+
+            string[] parts =
+            {
+                raw.Substring(0, 4),
+                raw.Substring(4, 4),
+                raw.Substring(8, 4),
+                raw.Substring(12, 4),
+                raw.Substring(16, 4),
+                raw.Substring(20, 4),
+                raw.Substring(24, 4),
+                raw.Substring(28, 4),
+                raw.Substring(32, 4),
+                raw.Substring(36, 4),
+                raw.Substring(40 , 4),
+                raw.Substring(44, 4),
+            };
+
+            return string.Join(':', parts);
+
+        }
     }
 }
